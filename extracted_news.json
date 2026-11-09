@@ -1,0 +1,27 @@
+[
+  {
+    "article_title": "PM meets UAE President: Defence, DAE's nuclear pivot",
+    "article_id": "5d2ff109-530c-4177-b013-b0d1765607cb",
+    "article_content": "The Indian Prime Minister met the UAE President to discuss defence cooperation and the Defence Acquisition Establishment's nuclear pivot. The focus was on light water reactors to tap global markets, with selective targeting to retain heavy water edge tariffs, according to Jaishankar. The meeting also touched on outreach to Pakistan and flagged Poland minister's involvement.",
+    "article_source": "The Indian Express",
+    "date": "2026-01-20",
+    "region": "India",
+    "event": "PM meeting UAE President",
+    "domains": [
+      {
+        "companies": [
+          {
+            "company": null,
+            "company_id": null,
+            "company_desc": null,
+            "isIndependent": false
+          }
+        ],
+        "domain": "Defence",
+        "domain_id": "f6565570-9f10-48b5-9975-6bf8178df6fb",
+        "domain_desc": null,
+        "isIndependent": true
+      }
+    ]
+  }
+]

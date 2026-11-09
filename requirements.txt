@@ -1,0 +1,15 @@
+aiohttp>=3.9
+PyMuPDF>=1.24
+pytesseract>=0.3.10
+Pillow>=10.0
+python-dotenv>=1.0
+# Web Scraping
+beautifulsoup4>=4.12.0
+aiohttp>=3.9.0
+# Optional: for JS-heavy sites
+playwright>=1.40.0 
+
+# Vector & Graph Storage
+chromadb>=0.4.22
+neo4j>=5.15.0
+sentence-transformers>=2.2.2  # For local embedding generation

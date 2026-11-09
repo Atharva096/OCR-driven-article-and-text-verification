@@ -1,0 +1,41 @@
+# Copy this file to .env and fill in your values.
+# Any OpenAI-compatible endpoint works. Free tiers and model names change,
+# so check the provider's current free models and limits.
+
+# --- Option A: Groq (free tier, fast, needs an API key) ---
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_API_KEY=your_key_here
+LLM_MODEL=llama-3.3-70b-versatile
+
+# --- Option B: Google Gemini (free tier, OpenAI-compatible endpoint) ---
+# LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+# LLM_API_KEY=your_key_here
+# LLM_MODEL=<a current free Gemini model>
+
+# --- Option C: OpenRouter (models whose name ends in ":free") ---
+# LLM_BASE_URL=https://openrouter.ai/api/v1
+# LLM_API_KEY=your_key_here
+# LLM_MODEL=<a model ending in :free>
+
+# --- Option D: Ollama on your own PC (no limits, no key, slower) ---
+# LLM_BASE_URL=http://localhost:11434/v1
+# LLM_API_KEY=ollama
+# LLM_MODEL=llama3.1:8b
+# LLM_JSON_MODE=0
+# CONCURRENCY=1
+# REQUESTS_PER_MINUTE=0
+
+# --- Throughput / rate-limit tuning ---
+CONCURRENCY=3
+REQUESTS_PER_MINUTE=20
+CHUNK_CHARS=6000
+CHUNK_OVERLAP=500
+MAX_TOKENS=4096
+
+# --- OCR ---
+# TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
+OCR_DPI=200
+# OCR_WORKERS=3
+
+# Used when the model returns no sector for an article (leave empty for null)
+# DEFAULT_DOMAIN=
