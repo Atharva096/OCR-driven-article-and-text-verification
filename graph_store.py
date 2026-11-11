@@ -1,6 +1,6 @@
 """Graph storage for knowledge representation using Neo4j."""
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 from neo4j import GraphDatabase
 
@@ -37,12 +37,15 @@ class GraphStore:
         date = article.get("date", "Unknown")
         content = article.get("article_content", "")[:1000]  # Truncate for graph preview
         
-        # Extract domain/company info (adapt based on your LLM output)
+        # Extract domain/company info
         domains = article.get("domains", [])
-        domain_name = domains[0].get("domain", "General") if domains else "General"
-        companies = [c.get("company") for d in domains for c in d.get("companies", []) if c.get("company")]
+        domain_name = domains[0].get("domain", "General") if domains and isinstance(domains[0], dict) else "General"
+        companies = [
+            c.get("company") 
+            for d in domains if isinstance(d, dict) 
+            for c in d.get("companies", []) if c.get("company")
+        ]
 
-        # Extract new fields if your LLM prompt is updated to include them
         region = article.get("region", "Unknown")
         event = article.get("event", "General News")
 
@@ -68,3 +71,57 @@ class GraphStore:
         tx.run(query, 
                article_id=article_id, title=title, source=source, date=date, content=content,
                domain=domain_name, region=region, event=event, companies=companies)
+
+    def get_graph_data(self) -> Tuple[List[Dict], List[Dict]]:
+        """Fetch all nodes and relationships for the UI visualization."""
+        nodes = []
+        edges = []
+        seen_nodes = set()
+        
+        with self.driver.session() as session:
+            # Fetch relationships and nodes. 
+            # Note: Article uses 'id', while others use 'name' as their unique identifier.
+            result = session.run("""
+                MATCH (a:Article)-[r]->(b)
+                RETURN a.id AS source_id, a.title AS source_name, labels(a)[0] AS source_type,
+                       type(r) AS rel_type,
+                       b.name AS target_name, labels(b)[0] AS target_type
+            """)
+            
+            for record in result:
+                source_id = record["source_id"]
+                source_name = record["source_name"]
+                source_type = record["source_type"]
+                rel_type = record["rel_type"]
+                target_name = record["target_name"]
+                target_type = record["target_type"]
+                
+                # Create a unique ID for target nodes based on type and name
+                target_id = f"{target_type}:{target_name}"
+                
+                # Add Source Node (Article)
+                if source_id not in seen_nodes:
+                    nodes.append({
+                        "id": source_id, 
+                        "label": source_name or source_id[:8], 
+                        "group": source_type
+                    })
+                    seen_nodes.add(source_id)
+                
+                # Add Target Node (Domain, Region, Event, Company)
+                if target_id not in seen_nodes:
+                    nodes.append({
+                        "id": target_id, 
+                        "label": target_name, 
+                        "group": target_type
+                    })
+                    seen_nodes.add(target_id)
+                
+                # Add Edge
+                edges.append({
+                    "source": source_id, 
+                    "target": target_id, 
+                    "label": rel_type
+                })
+                
+        return nodes, edges
