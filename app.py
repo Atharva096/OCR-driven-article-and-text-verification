@@ -56,7 +56,7 @@ def get_stores():
     return stores
 
 # --------------------------------------------------------------------------- Main Tabs
-tab_pipeline, tab_search, tab_graph, tab_data = st.tabs(["📥 Pipeline", "🔍 Semantic Search", "🕸️ Knowledge Graph", "📊 Data Explorer"])
+tab_pipeline, tab_search, tab_graph, tab_data, tab_chat = st.tabs(["📥 Pipeline", "🔍 Semantic Search", "🕸️ Knowledge Graph", "📊 Data Explorer", "💬 Graph Chat"])
 
 # --- TAB 1: PIPELINE ---
 with tab_pipeline:
@@ -125,28 +125,117 @@ with tab_search:
 # --- TAB 3: KNOWLEDGE GRAPH ---
 with tab_graph:
     st.header("🕸️ Knowledge Graph (Neo4j)")
-    
+
     stores = get_stores()
-    
-    # Check if Neo4j is actually connected
+
     if stores["graph"] is None:
-        st.warning("⚠️ Neo4j is not running or not configured. Please start your Neo4j Desktop database to see the visualization.")
+        st.warning("⚠️ Neo4j is not running. Start Neo4j Desktop and set NEO4J_URI=neo4j://127.0.0.1:7687 in .env.")
     else:
         try:
             nodes, edges = stores["graph"].get_graph_data()
-            
+
             if nodes:
-                from streamlit_agraph import agraph, Node, Edge, Config
-                
-                st_nodes = [Node(id=n["id"], label=n["label"], group=n["group"]) for n in nodes]
-                st_edges = [Edge(source=e["source"], target=e["target"], label=e["label"]) for e in edges]
-                
-                config = Config(width=800, height=600, directed=True, physics=True, hierarchical=False)
-                agraph(nodes=st_nodes, edges=st_edges, config=config)
+                import pyvis
+                import tempfile
+                import streamlit.components.v1 as components
+                import json  # <--- ADDED THIS
+
+                # Consistent color + size per entity type
+                GROUP_COLORS = {
+                    "Article": "#4A90D9",   # blue
+                    "Region":  "#E15759",   # red
+                    "Domain":  "#F2C14E",   # yellow
+                    "Event":   "#59A14F",   # green
+                    "Company": "#B07AA1",   # purple
+                }
+                GROUP_SIZES = {
+                    "Article": 38,
+                    "Region":  24,
+                    "Domain":  24,
+                    "Event":   24,
+                    "Company": 22,
+                }
+
+                net = pyvis.network.Network(
+                    height="650px", width="100%",
+                    directed=True, notebook=False
+                )
+
+                # Add Nodes (casting to str to prevent type errors)
+                for n in nodes:
+                    grp = str(n.get("group", "Unknown"))
+                    lbl = str(n.get("label", ""))
+                    nid = str(n["id"])
+                    
+                    net.add_node(
+                        nid,
+                        label=lbl,
+                        color=GROUP_COLORS.get(grp, "#999999"),
+                        size=GROUP_SIZES.get(grp, 18),
+                        shape="dot",
+                        title=f"<b>{grp}</b><br>{lbl}",
+                    )
+
+                # Add Edges (using string color instead of dict to be safe)
+                for e in edges:
+                    net.add_edge(
+                        str(e["source"]), str(e["target"]),
+                        label=str(e.get("label", "")),
+                        title=str(e.get("label", "")),
+                        color="#aaaaaa", 
+                    )
+
+                # Configure Physics and Layout
+                # CRITICAL FIX: pyvis requires a JSON STRING, not a dictionary!
+                options = {
+                    "physics": {
+                        "enabled": True,
+                        "barnesHut": {
+                            "gravitationalConstant": -3000,
+                            "centralGravity": 0.3,
+                            "springLength": 220,
+                            "springConstant": 0.02,
+                            "damping": 0.10,
+                            "avoidOverlap": 0.5
+                        }
+                    },
+                    "edges": {
+                        "smooth": {"enabled": True, "type": "curvedCW", "roundness": 0.25},
+                        "arrows": {"to": {"enabled": True, "scaleFactor": 0.6}},
+                        "font": {"size": 12, "color": "#666666", "strokeWidth": 0, "align": "middle"},
+                        "width": 2,
+                    },
+                    "nodes": {
+                        "font": {"size": 14, "color": "#222222", "face": "arial"},
+                        "borderWidth": 2,
+                        "borderWidthSelected": 4,
+                        "shadow": {"enabled": True, "color": "#cccccc"},
+                    },
+                    "interaction": {"hover": True, "tooltipDelay": 100, "dragNodes": True, "zoomView": True},
+                }
+
+                # Pass the options as a JSON string
+                net.set_options(json.dumps(options))
+
+                html_path = tempfile.gettempdir() + "/news_graph.html"
+                net.write_html(html_path)
+                with open(html_path, "r", encoding="utf-8") as f:
+                    html = f.read()
+
+                components.html(html, height=690, scrolling=False)
+
+                # Legend
+                st.caption(f"🔗 {len(nodes)} nodes · {len(edges)} relationships  —  drag to move, scroll to zoom, hover for details")
+                lc = st.columns(5)
+                lc[0].markdown("🔵 Article")
+                lc[1].markdown("🔴 Region")
+                lc[2].markdown("🟡 Domain")
+                lc[3].markdown("🟢 Event")
+                lc[4].markdown("🟣 Company")
             else:
                 st.info("Graph is empty. Run an extraction with '--enable-graph' to populate nodes.")
         except Exception as e:
-            st.error(f"Failed to fetch graph data: {e}")
+            st.error(f"Failed to render graph: {e}")
 
 # --- TAB 4: DATA EXPLORER ---
 with tab_data:
@@ -197,3 +286,93 @@ with tab_data:
         st.download_button("⬇️ Download CSV", csv, "articles.csv", "text/csv")
     else:
         st.info("No articles found in the database yet.")
+
+# --- TAB 5: GRAPH CHAT ---
+with tab_chat:
+    st.header("💬 Chat with your Knowledge Graph")
+    st.markdown("Ask natural language questions. The AI will write the Neo4j code to find the answer.")
+
+    chat_question = st.text_input("Ask a question...", placeholder="e.g., What regions are mentioned in the articles?")
+    ask_button = st.button("Ask Graph", type="secondary", use_container_width=True)
+
+    if ask_button and chat_question:
+        stores = get_stores()
+        if stores["graph"] is None:
+            st.error("Neo4j is not running.")
+        else:
+            import aiohttp
+            import asyncio
+            from extractor import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
+
+            # 1. Build a rich schema string with the REAL connection patterns
+            labels, rels, patterns = stores["graph"].get_schema()
+            schema_text = (
+                f"Node Labels: {labels}\n"
+                f"Relationship Types: {rels}\n"
+                f"Valid Connection Patterns (use ONLY these):\n" + "\n".join(patterns)
+            )
+
+            prompt = f"""You are a Neo4j Cypher expert.
+
+{schema_text}
+
+Rules:
+- Use ONLY the connection patterns listed above. Do NOT invent multi-hop paths.
+- Always RETURN named columns (e.g. RETURN r.name AS region), never a bare node.
+- Return ONLY the raw Cypher query. No markdown, no explanation.
+
+Examples:
+Q: What regions are mentioned?
+A: MATCH (a:Article)-[:OCCURRED_IN]->(r:Region) RETURN DISTINCT r.name AS region
+
+Q: Which domains do articles belong to?
+A: MATCH (a:Article)-[:BELONGS_TO]->(d:Domain) RETURN DISTINCT d.name AS domain
+
+Q: {chat_question}
+A:"""
+
+            async def get_cypher():
+                url = f"{LLM_BASE_URL.rstrip('/')}/chat/completions"
+                headers = {"Content-Type": "application/json"}
+                if LLM_API_KEY:
+                    headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+                payload = {
+                    "model": LLM_MODEL,
+                    "messages": [
+                        {"role": "system", "content": "You are a Neo4j Cypher expert. Return ONLY the raw Cypher query. No markdown, no explanation."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.0
+                }
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=payload, headers=headers) as resp:
+                        data = await resp.json()
+                        return data["choices"][0]["message"]["content"]
+
+            # 2. Generate the query (separate try/except)
+            try:
+                raw_response = asyncio.run(get_cypher()).strip()
+            except Exception as e:
+                st.error(f"Failed to generate query: {e}")
+                st.stop()
+
+            # Clean markdown fences if present
+            cypher_query = raw_response
+            if cypher_query.startswith("```cypher"):
+                cypher_query = cypher_query.replace("```cypher", "").replace("```", "").strip()
+            elif cypher_query.startswith("```"):
+                cypher_query = cypher_query.replace("```", "").strip()
+
+            st.code(cypher_query, language="cypher")
+
+            # 3. Execute the query (separate handling)
+            results = stores["graph"].execute_query(cypher_query)
+
+            if not results:
+                st.warning("The query ran but returned no rows. That pattern may not exist in your data.")
+            elif "error" in results[0]:
+                st.error(f"Query failed: {results[0]['error']}")
+            else:
+                st.success("Query executed successfully!")
+                df = pd.DataFrame(results)
+                st.dataframe(df, use_container_width=True)

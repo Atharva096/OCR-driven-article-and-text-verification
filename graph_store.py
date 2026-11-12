@@ -13,6 +13,30 @@ class GraphStore:
         self.driver.verify_connectivity()
         log.info("Connected to Neo4j at %s", uri)
 
+    def get_schema(self):
+        """Return node labels, relationship types, AND the real connection patterns."""
+        with self.driver.session() as session:
+            labels = [r[0] for r in session.run("CALL db.labels()")]
+            rels = [r[0] for r in session.run("CALL db.relationshipTypes()")]
+            patterns = [
+                f"({p['src']})-[:{p['rel']}]->({p['tgt']})"
+                for p in session.run("""
+                    MATCH (a)-[r]->(b)
+                    RETURN DISTINCT labels(a)[0] AS src, type(r) AS rel, labels(b)[0] AS tgt
+                    LIMIT 50
+                """)
+            ]
+            return labels, rels, patterns
+
+    def execute_query(self, cypher_query: str):
+        """Execute a raw Cypher query and return results as a list of dictionaries."""
+        try:
+            with self.driver.session() as session:
+                result = session.run(cypher_query)
+                return [dict(record) for record in result]
+        except Exception as e:
+            return [{"error": str(e)}]
+
     def close(self):
         self.driver.close()
 

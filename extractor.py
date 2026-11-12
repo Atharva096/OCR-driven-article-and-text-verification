@@ -500,7 +500,13 @@ async def process_source(store: Store, client: LLMClient, session: aiohttp.Clien
         log.info("Fetching web content: %s", source)
         
         try:
-            async with session.get(source, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+            # Add realistic browser headers to bypass basic anti-bot blocks
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+            async with session.get(source, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 resp.raise_for_status()
                 html = await resp.text()
                 html = re.sub(r'<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>', '', html, flags=re.IGNORECASE)
